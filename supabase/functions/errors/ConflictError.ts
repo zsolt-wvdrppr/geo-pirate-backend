@@ -1,9 +1,9 @@
-class BadRequestError extends Error {
-  status: number;
+import AppError from "./AppError.ts";
+
+class BadRequestError extends AppError {
   constructor(message: string) {
-    super(message);
+    super(message, 409);
     this.name = "ConflictError";
-    this.status = 409;
   }
 }
 
