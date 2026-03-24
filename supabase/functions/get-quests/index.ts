@@ -4,6 +4,7 @@ import { Database } from "../../../database.types.ts";
 import BadRequestError from "../errors/BadRequestError.ts";
 import NotFoundError from "../errors/NotFoundError.ts";
 import AppError from "../errors/AppError.ts";
+import { ConflictError } from "npm:openai@^4.52.5";
 
 const env = Deno.env.get("ENV");
 const SUPABASE_URL = env === "DEVELOPMENT"
@@ -25,9 +26,9 @@ type ReqBodyType = {
   quest_id?: number | null;
   user_id?: string | null;
 };
+type ErrorTypes = AppError | BadRequestError | ConflictError | NotFoundError;
 
 const getQuestList = async () => {
-  console.log("Getting quest list...");
   const { data, error } = await supabase
     .from("quests")
     .select(
@@ -37,24 +38,41 @@ const getQuestList = async () => {
   return { data, error, dataType: "quest_list" as const };
 };
 
+const getQuestInfoByQuestId = async (questId: QuestIdType) => {
+  if (!Number(questId)) {
+    throw new BadRequestError(`Incorrect quest_id format '${questId}'`);
+  }
+
+  const { data, error } = await supabase
+    .from("quests")
+    .select()
+    .eq("quest_id", questId);
+
+  if (data?.length === 0) {
+    throw new NotFoundError(`Quest not foud by id: ${questId}!`);
+  }
+
+  return { data, error, dataType: "quest_info" as const };
+};
+
 const dataTypeSelector = async (body: ReqBodyType) => {
   const {
     data_type: dataType,
     quest_id: questId = null,
-    user_id: userId = null,
   } = body;
 
   if (!dataType) {
-    throw new BadRequestError("Missing data type in request body!");
+    throw new BadRequestError("Missing data_type in request body!");
   }
-
-  console.log("data_type", dataType);
-  console.log("quest_id", questId);
-  console.log("user_id", userId);
 
   switch (dataType) {
     case "quest_list":
       return await getQuestList();
+    case "quest_info":
+      if (!questId) {
+        throw new BadRequestError("Missing quest_id in request body!");
+      }
+      return await getQuestInfoByQuestId(questId);
     default:
       throw new BadRequestError("Incorrect data type in request body!");
   }
@@ -68,10 +86,6 @@ Deno.serve(async (req: Request) => {
     } catch {
       throw new BadRequestError("Invalid or missing request body!");
     }
-    const { data_type } = body;
-    if (data_type === undefined) {
-      throw new BadRequestError("Missing data type in request body!");
-    }
 
     const { data, error, dataType } = await dataTypeSelector(body);
     if (error) throw new Error(error.message);
@@ -81,8 +95,6 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Edge function error:", error);
-
     const status = error instanceof AppError ? error.status : 500;
     const message = error instanceof Error
       ? error.message
