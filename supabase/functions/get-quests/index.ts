@@ -4,7 +4,6 @@ import { Database } from "../../../database.types.ts";
 import BadRequestError from "../errors/BadRequestError.ts";
 import NotFoundError from "../errors/NotFoundError.ts";
 import AppError from "../errors/AppError.ts";
-import ConflictError from "../errors/ConflictError.ts";
 
 const env = Deno.env.get("ENV");
 const SUPABASE_URL = env === "DEVELOPMENT"
@@ -24,9 +23,15 @@ type QuestIdType = number;
 type ReqBodyType = {
   data_type: ReqDataType;
   quest_id?: number | null;
-  user_id?: string | null;
 };
-type ErrorTypes = AppError | BadRequestError | ConflictError | NotFoundError;
+
+function verifyQuestId(
+  questId: QuestIdType | null,
+): asserts questId is QuestIdType {
+  if (!questId) {
+    throw new BadRequestError("Missing quest_id in request body!");
+  }
+}
 
 const getQuestList = async () => {
   const { data, error } = await supabase
@@ -55,6 +60,42 @@ const getQuestInfoByQuestId = async (questId: QuestIdType) => {
   return { data, error, dataType: "quest_info" as const };
 };
 
+type ClueRowType = Database["public"]["Tables"]["clues"]["Row"];
+
+const includeSketches = async (clues: ClueRowType[]) => {
+  const sketches = Promise.all(
+    clues.map(async (item) => {
+      if (!item.sketch_id) return null;
+
+      const { data, error } = await supabase
+        .from("sketches")
+        .select()
+        .eq("sketch_id", item.sketch_id)
+        .single();
+
+      if (error) throw new AppError(error.message, 500);
+
+      return { ...item, ...data };
+    }),
+  );
+
+  return await sketches;
+};
+
+const getQuestClues = async (questId: QuestIdType) => {
+  const { data, error } = await supabase
+    .from("clues")
+    .select()
+    .eq("quest_id", questId);
+
+  if (error) throw new AppError(error.message, 500);
+  if (data?.length === 0) throw new NotFoundError("No clue found");
+
+  const clues = await includeSketches(data);
+
+  return { data: clues, error, dataType: "quest_clues" as const };
+};
+
 const dataTypeSelector = async (body: ReqBodyType) => {
   const {
     data_type: dataType,
@@ -69,10 +110,11 @@ const dataTypeSelector = async (body: ReqBodyType) => {
     case "quest_list":
       return await getQuestList();
     case "quest_info":
-      if (!questId) {
-        throw new BadRequestError("Missing quest_id in request body!");
-      }
+      verifyQuestId(questId);
       return await getQuestInfoByQuestId(questId);
+    case "quest_clues":
+      verifyQuestId(questId);
+      return await getQuestClues(questId);
     default:
       throw new BadRequestError("Incorrect data type in request body!");
   }
@@ -96,7 +138,7 @@ Deno.serve(async (req: Request) => {
     });
   } catch (error) {
     const status = error instanceof AppError ? error.status : 500;
-    const message = error instanceof Error
+    const message = error instanceof AppError
       ? error.message
       : "Internal server error";
 
