@@ -3,8 +3,5 @@
     "gen:types": "supabase gen types typescript --local > database.types.ts",
     "db:reset": "supabase db reset",
     "functions:serve": "supabase functions serve --env-file ./supabase/functions/.env"
-  },
-  "dependencies": {
-    "@supabase/functions-js": "^2.100.0"
   }
 }
