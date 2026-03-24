@@ -1,5 +1,6 @@
 class BadRequestError extends Error {
-  constructor(message) {
+  status: number;
+  constructor(message: string) {
     super(message);
     this.name = "NotFoundError";
     this.status = 404;
