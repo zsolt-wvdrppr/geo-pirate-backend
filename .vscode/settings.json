@@ -2,7 +2,6 @@
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   },
-  "deno.configPath": "supabase/functions/deno.json",
   "deno.enable": false,
   "deno.enablePaths": [
     "supabase/functions"
