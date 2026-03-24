@@ -4,7 +4,7 @@ import { Database } from "../../../database.types.ts";
 import BadRequestError from "../errors/BadRequestError.ts";
 import NotFoundError from "../errors/NotFoundError.ts";
 import AppError from "../errors/AppError.ts";
-import { ConflictError } from "npm:openai@^4.52.5";
+import ConflictError from "../errors/ConflictError.ts";
 
 const env = Deno.env.get("ENV");
 const SUPABASE_URL = env === "DEVELOPMENT"
